@@ -1,3 +1,7 @@
-nfl_data_py
 numpy
 pandas
+xgboost
+pyarrow
+openpyxl
+lxml
+nfl_data_py

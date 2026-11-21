@@ -1,37 +1,41 @@
-# QB Passing Yards Model
+# QB Passing Yards Model (v4)
 
-A desktop tool that projects an NFL quarterback's passing yards for an upcoming game, simulates the range of outcomes, and compares the resulting probabilities to a market line.
+A desktop tool that projects an NFL quarterback's **passing yards** and **touchdown passes** for an upcoming game, then turns each projection into calibrated over/under probabilities for a given line.
 
-## What it does
+## How it works
 
-- **Live data:** pulls current-season weekly player stats and team defensive EPA from [nflverse](https://github.com/nflverse) via `nfl_data_py`.
-- **Two projection methods** (plus a blend):
-  - *Adjustment model*: a transparent baseline from the QB's recent form, adjusted for opponent pass defense (EPA/play), Vegas total and spread, and home field.
-  - *Global regression*: a standardized regression trained across every QB-week in the season, so each projection borrows strength from the whole league instead of one player's small sample.
-- **Context adjustments:** wind, temperature, rain, snow, and indoor/dome games shift the mean and widen the spread.
-- **Monte Carlo simulation:** 20,000 simulated games turn the projection into over/under probabilities for any line.
-- **Pricing and sizing:** converts American odds to implied probability, reports the model's edge on each side, and sizes positions with fractional Kelly criterion.
+**Baseline.** A blend of three views of the QB's recent form (last 8 usable games):
+- an exponentially weighted moving average of passing yards (decay 0.85),
+- the median, which resists one-off game-script outliers,
+- attempts × yards per attempt, a volume-times-efficiency cross-check.
 
-## Project structure
+It's then adjusted for opponent and own-team pass EPA, sack rate, and aDOT, plus the Vegas total and spread.
 
-| File | Purpose |
-|---|---|
-| `qb_gui.py` | Tkinter desktop app (inputs, threaded data loading, report) |
-| `data_loader.py` | Loads nflverse data and builds pregame features for a QB |
-| `model.py` | Projection, regression training, weather adjustments, simulation, odds and Kelly math |
+**XGBoost.** A gradient-boosted model trained on every historical QB game. Its predictions are clamped to within 60 yards of the baseline, so one unstable leaf can't dominate. How much weight it gets depends on whether it *amplifies* or *corrects* an already-extreme baseline, a split measured in the backtest.
+
+**Leak-free features.** Opponent defensive features come from a date-ordered index. Each training row sees only what that defense allowed in games played *before* the target game, so no future information gets into training.
+
+**Low-volume games** (under 15 attempts: injury exits, benchings, rested starters) are down-weighted instead of dropped. Dropping them would bias projections high, because those props still settle.
+
+**TD passes.** A separate Poisson model (XGBoost with `count:poisson`) produces an expected TD rate, and over/under probabilities come from the exact Poisson distribution.
+
+**Probabilities.** Over/under probabilities for yards use a closed-form Normal or right-skewed shifted-gamma distribution, followed by logit calibration. The spread blends the QB's own recent variance with the model's out-of-sample residual error for that attempt-volume bucket.
+
+**Backtest.** A walk-forward backtest fits the blend weights, Vegas slopes, bias terms, calibration strength, and distribution shape (scored by Brier score). The results are saved with a fingerprint of the model configuration. If the model changes, stale results are ignored rather than misapplied.
+
+**Weather.** Wind, cold, rain, and snow adjust the mean and widen the spread for outdoor games.
+
+## Data
+
+Weekly QB stats and team EPA come from [nflverse](https://github.com/nflverse). Earlier seasons can also use Pro-Football-Reference game-log exports. When a season is covered by both sources, duplicate games are removed.
 
 ## Run it
 
 ```bash
 pip install -r requirements.txt
-python qb_gui.py
+python qb_gui_V4.py
 ```
-
-1. Wait for the season data to load (status line at the top).
-2. Optionally click **Train Global Model** to enable the regression and blend methods.
-3. Enter the QB, opponent team code, Vegas total and spread, weather, and the line and odds.
-4. Click **Run Projection**.
 
 ## Disclaimer
 
-This is a statistics project. Its output is a model opinion, not a guaranteed edge. Markets already price in most public information.
+This is a statistics project. Its output is a model opinion, not a guaranteed edge.
