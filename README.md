@@ -25,6 +25,28 @@ It's then adjusted for opponent and own-team pass EPA, sack rate, and aDOT, plus
 
 **Weather.** Wind, cold, rain, and snow adjust the mean and widen the spread for outdoor games.
 
+## Backtest results
+
+From a 5-fold expanding-window walk-forward backtest over 912 QB games (456 out-of-sample predictions, Nov 2025 – Nov 2026). Full output is in `backtest_results.json`.
+
+| Metric | Result |
+|---|---|
+| Mean absolute error | 63.1 yds (vs. 64.7 for the rolling-average baseline alone) |
+| Average bias | +2.0 yds (vs. +11.2 before the fitted bias/Vegas correction) |
+| Calibration | Predicted over-probabilities within 2 percentage points of observed hit rates in every bin |
+| Best XGBoost weight | 0.5 when correcting an extreme baseline toward the mean, 0 when amplifying it |
+
+**Limitations:** No historical sportsbook lines are included, so over/under calibration is scored at synthetic lines placed around each projection, not real market lines. Results show forecast accuracy, not an edge against the market.
+
+## Files
+
+| File | Purpose |
+|---|---|
+| `qb_gui_V4.py` | Model and Tkinter desktop app |
+| `prop_calibration.py` | Over/under distributions (Normal, shifted gamma) and calibration selection |
+| `backtest_qb_model.py` | Walk-forward backtest; writes `backtest_results.json` |
+| `backtest_results.json` | Latest backtest output, read by the app on startup |
+
 ## Data
 
 Weekly QB stats and team EPA come from [nflverse](https://github.com/nflverse). Earlier seasons can also use Pro-Football-Reference game-log exports. When a season is covered by both sources, duplicate games are removed.
@@ -33,6 +55,7 @@ Weekly QB stats and team EPA come from [nflverse](https://github.com/nflverse). 
 
 ```bash
 pip install -r requirements.txt
+python backtest_qb_model.py   # optional: re-run the backtest
 python qb_gui_V4.py
 ```
 
